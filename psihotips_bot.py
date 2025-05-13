@@ -3,6 +3,9 @@
 
 import logging
 import random
+import os
+import threading # Added for running bot in a separate thread
+from flask import Flask # Added for Render Web Service
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
 
@@ -12,11 +15,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TOKEN = "8093256646:AAG_cENkqW-4ytpvVC-ufpk5urrZQC9RFqo"  # ЗАМЕНИТЕ НА ВАШ ТОКЕН
-ADMIN_USER_ID = 1398676375  # ЗАМЕНИТЕ НА ВАШ USER ID
+# --- Configuration for Bot and Admin ---
+TOKEN = os.getenv("TOKEN") # Get TOKEN from environment variable
+ADMIN_USER_ID_STR = os.getenv("ADMIN_USER_ID") # Get ADMIN_USER_ID from environment variable
+ADMIN_USER_ID = int(ADMIN_USER_ID_STR) if ADMIN_USER_ID_STR else None
 
-# --- States for ConversationHandlers (if needed later) ---
-# Example: CHOOSING, TYPING_REPLY, TYPING_CHOICE = range(3)
+# --- Flask App for Render Web Service ---
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def hello_world():
+    return 'Telegram Bot is running!'
 
 # --- Data for features (can be expanded or moved to separate files/DB later) ---
 DAILY_TIPS = [
@@ -37,8 +46,6 @@ SELF_HELP_TECHNIQUES = {
     "релаксация": "**Техника прогрессивной мышечной релаксации:**\n1. Сядьте или лягте удобно.\n2. Начните с пальцев ног: сильно напрягите их на 5 секунд, затем полностью расслабьте на 10-15 секунд. Обратите внимание на разницу в ощущениях.\n3. Постепенно продвигайтесь вверх по телу (икры, бедра, живот, грудь, руки, плечи, шея, лицо), напрягая и расслабляя каждую группу мышц.\n4. Завершите, почувствовав полное расслабление во всем теле.",
     "заземление": "**Техника заземления '5-4-3-2-1':**\nКогда чувствуете тревогу, попробуйте найти вокруг себя:\n- 5 вещей, которые вы видите (например, стол, цветок, ручка, окно, книга).\n- 4 вещи, которые вы можете потрогать (например, ткань одежды, гладкая поверхность стола, тепло чашки, свои волосы).\n- 3 вещи, которые вы слышите (например, пение птиц, шум машин, тиканье часов).\n- 2 вещи, которые вы можете понюхать (например, запах кофе, свежий воздух, духи).\n- 1 вещь, которую вы можете попробовать на вкус (например, мятная конфета, вода, фрукт)."
 }
-
-MOOD_OPTIONS = ["Отлично", "Хорошо", "Нормально", "Плохо", "Ужасно"]
 
 # --- Helper Functions ---
 def get_main_keyboard():
@@ -80,6 +87,9 @@ async def daily_tip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 ASK_QUESTION_STATE = 1
 
 async def ask_anonymous_question_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not ADMIN_USER_ID:
+        await update.message.reply_text("Функция анонимных вопросов временно недоступна, так как не настроен ID администратора.", reply_markup=get_main_keyboard())
+        return ConversationHandler.END
     await update.message.reply_text(
         "Пожалуйста, напишите ваш вопрос. Он будет отправлен администратору анонимно. \nЧтобы отменить, введите /cancel.",
         reply_markup=ReplyKeyboardMarkup([[KeyboardButton("/cancel")]], resize_keyboard=True, one_time_keyboard=True)
@@ -90,6 +100,10 @@ async def process_anonymous_question(update: Update, context: ContextTypes.DEFAU
     user_question = update.message.text
     user_info = update.effective_user
     
+    if not ADMIN_USER_ID:
+        await update.message.reply_text("Не удалось отправить вопрос: не настроен ID администратора.", reply_markup=get_main_keyboard())
+        return ConversationHandler.END
+
     try:
         await context.bot.send_message(
             chat_id=ADMIN_USER_ID,
@@ -114,7 +128,7 @@ async def cancel_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE
 # --- Feature: Self-Help Techniques ---
 async def self_help_techniques_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     buttons = [[InlineKeyboardButton(name.capitalize(), callback_data=f"technique_{key}")] for key, name in SELF_HELP_TECHNIQUES.items()]
-    buttons.append([InlineKeyboardButton("🔙 Назад в меню", callback_data="technique_main_menu")]) # Changed callback_data for clarity
+    buttons.append([InlineKeyboardButton("🔙 Назад в меню", callback_data="technique_main_menu")])
     reply_markup = InlineKeyboardMarkup(buttons)
     await update.message.reply_text("Выберите технику самопомощи:", reply_markup=reply_markup)
 
@@ -122,23 +136,20 @@ async def self_help_technique_callback(update: Update, context: ContextTypes.DEF
     query = update.callback_query
     await query.answer()
     
-    # Ensure query.data is not None and is a string before splitting
     if query.data is None or not isinstance(query.data, str):
         logger.warning(f"Received unexpected callback_data: {query.data}")
-        await query.edit_message_text(text="Произошла ошибка. Попробуйте еще раз.")
-        # Send a new message with the main keyboard to allow further interaction
         if query.message:
+            await query.edit_message_text(text="Произошла ошибка. Попробуйте еще раз.")
             await context.bot.send_message(chat_id=query.message.chat_id, text="Что дальше?", reply_markup=get_main_keyboard())
         return
 
-    # Split data to get action and potentially a key
     parts = query.data.split('_', 1)
     action = parts[0]
     key = parts[1] if len(parts) > 1 else None
 
     if action == "technique" and key == "main_menu":
         if query.message:
-            await query.edit_message_text("Вы вернулись в главное меню.", reply_markup=None) # Remove inline keyboard
+            await query.edit_message_text("Вы вернулись в главное меню.", reply_markup=None)
             await context.bot.send_message(chat_id=query.message.chat_id, text="Выберите действие:", reply_markup=get_main_keyboard())
         return
     elif action == "technique" and key in SELF_HELP_TECHNIQUES:
@@ -175,11 +186,16 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
     elif text == "Помощь / О боте ℹ️":
         await help_command(update, context)
 
-def main() -> None:
-    """Start the bot."""
+# --- Telegram Bot Application Setup ---
+def run_telegram_bot():
+    if not TOKEN:
+        logger.error("Telegram TOKEN not found in environment variables!")
+        return
+    if not ADMIN_USER_ID:
+        logger.warning("ADMIN_USER_ID not found or invalid in environment variables! Anonymous questions might not work.")
+
     application = Application.builder().token(TOKEN).build()
 
-    # Command handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("daily_tip", daily_tip_command))
@@ -187,7 +203,6 @@ def main() -> None:
     application.add_handler(CommandHandler("mood_tracker", mood_tracker_command))
     application.add_handler(CommandHandler("techniques", self_help_techniques_menu))
 
-    # ConversationHandler for Anonymous Questions
     conv_handler_anonymous_question = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex('^Задать анонимный вопрос ❓$'), ask_anonymous_question_start), CommandHandler('ask', ask_anonymous_question_start)],
         states={
@@ -196,19 +211,21 @@ def main() -> None:
         fallbacks=[CommandHandler("cancel", cancel_conversation)],
     )
     application.add_handler(conv_handler_anonymous_question)
-
-    # CallbackQueryHandler for Self-Help Techniques menu
-    # Pattern now more specific to avoid conflicts if other callbacks are added
     application.add_handler(CallbackQueryHandler(self_help_technique_callback, pattern='^technique_'))
-
-    # MessageHandler for keyboard buttons (must be after specific command/conversation handlers)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_keyboard_buttons))
 
-    # Run the bot until the user presses Ctrl-C
-    logger.info("Bot is starting...")
+    logger.info("Telegram Bot is starting polling...")
     application.run_polling()
 
+# --- Main Execution ---
 if __name__ == "__main__":
-    main()
+    # Start Telegram bot in a new thread
+    bot_thread = threading.Thread(target=run_telegram_bot)
+    bot_thread.start()
+    
+    # Start Flask web server for Render
+    port = int(os.environ.get("PORT", 5000)) # Render provides PORT, default to 5000 for local testing
+    logger.info(f"Flask app starting on port {port}")
+    flask_app.run(host='0.0.0.0', port=port)
 
 
