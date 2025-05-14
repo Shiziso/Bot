@@ -1,0 +1,12 @@
+meta:
+  environment: python
+  version: "3.11"
+run:
+  scriptName: psihotips_bot_makecloud.py
+  requirementsPath: requirements_amvera.txt
+# Если вашему боту нужно сохранять какие-либо данные (например, логи, пользовательские данные),
+# раскомментируйте и настройте секцию persistentStorage.
+# persistentStorage:
+#   bot_data:
+#     size: 1Gi # Размер хранилища, например, 1 гигабайт
+#     mountPath: /app/data # Путь внутри контейнера, куда будет смонтировано хранилище
