@@ -6,10 +6,10 @@
 """
 
 # Токен бота (заменить на реальный токен)
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "8093256646:AAH5Zybvzhzkk-ZBTFRzrVq1X2wn_4yO8ps"
 
 # ID администратора (заменить на реальный ID)
-ADMIN_USER_ID = 123456789
+ADMIN_USER_ID = 1398676375
 
 # Информация о боте
 BOT_INFO = {
