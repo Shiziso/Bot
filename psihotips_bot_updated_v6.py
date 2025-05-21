@@ -26,8 +26,8 @@ ADMIN_USER_ID = int(ADMIN_USER_ID_STR) if ADMIN_USER_ID_STR else None
 
 # --- State definitions for conversations ---
 CHOOSING_TECHNIQUE, SHOWING_TECHNIQUE_DETAIL = range(2)
-ASK_QUESTION_STATE = range(1) # For user asking anonymous question
-ADMIN_REPLY_STATE = range(1) # For admin replying to anonymous question
+ASK_QUESTION_STATE = 0 # For user asking anonymous question
+ADMIN_REPLY_STATE = 0 # For admin replying to anonymous question
 
 # --- State definitions for tests ---
 CHOOSING_TEST, CONFIRMING_TEST, TAKING_TEST, SHOWING_TEST_RESULT = range(4)
@@ -537,9 +537,6 @@ TESTS = {
     }
 }
 
-# --- User data storage ---
-user_test_history = {}  # Для хранения истории тестов пользователей
-
 # --- Keyboard layouts ---
 def get_main_keyboard():
     """Возвращает основную клавиатуру с главными функциями бота."""
@@ -878,8 +875,14 @@ async def handle_admin_reply_button(update: Update, context: ContextTypes.DEFAUL
             reply_markup=ReplyKeyboardMarkup([["Отменить ответ"]], resize_keyboard=True)
         )
         return ADMIN_REPLY_STATE
-    
-    return ConversationHandler.END
+    else:
+        logger.warning(f"Unexpected callback_data in handle_admin_reply_button: {data}")
+        # Optionally inform the admin/user, but the primary goal is ending the conversation.
+        # await query.message.reply_text(
+        #     "Произошла ошибка при обработке вашего запроса. Попробуйте снова.",
+        #     reply_markup=get_main_keyboard() 
+        # )
+        return ConversationHandler.END
 
 async def handle_admin_reply_submission(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обрабатывает отправку ответа на анонимный вопрос."""
@@ -1108,17 +1111,8 @@ async def show_test_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
     
     # Сохраняем результат в историю пользователя
-    if user_id not in user_test_history:
-        user_test_history[user_id] = {}
-    
-    if test_id not in user_test_history[user_id]:
-        user_test_history[user_id][test_id] = []
-    
-    # Добавляем результат с датой
-    user_test_history[user_id][test_id].append({
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "result": result
-    })
+    current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    await stats.save_test_result(user_id, test_id, current_time_str, result, sum(answers))
     
     # Получаем сообщение и кнопку для результата
     message, button_text, button_url = get_result_message_and_button(test_id, result)
@@ -1275,10 +1269,10 @@ async def main() -> None:
     
     # Add general message handler for statistics
     application.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND, 
-        lambda update, context: stats.process_message(
-            update.effective_user.id, 
-            update.effective_user.username, 
+        filters.TEXT & ~filters.COMMAND,
+        async lambda update, context: await stats.process_message(
+            update.effective_user.id,
+            update.effective_user.username,
             update.effective_user.first_name
         )
     ))

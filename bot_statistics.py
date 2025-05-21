@@ -50,6 +50,39 @@ async def initialize_database():
     )
     ''')
     
+    # Таблица истории тестов пользователей
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS user_test_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        test_id TEXT,
+        test_date TIMESTAMP,
+        result TEXT,
+        score INTEGER,
+        FOREIGN KEY (user_id) REFERENCES users (user_id)
+    )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+# Сохранение результата теста пользователя
+async def save_test_result(user_id, test_id, test_date, result, score):
+    """Сохраняет результат пройденного теста в базу данных."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Убедимся, что test_date это строка в нужном формате
+    if isinstance(test_date, datetime):
+        test_date_str = test_date.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        test_date_str = test_date # Предполагаем, что это уже строка
+        
+    cursor.execute(
+        "INSERT INTO user_test_history (user_id, test_id, test_date, result, score) VALUES (?, ?, ?, ?, ?)",
+        (user_id, test_id, test_date_str, result, score)
+    )
+    
     conn.commit()
     conn.close()
 
