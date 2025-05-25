@@ -41,7 +41,6 @@ from handlers import (
     techniques_command,
     show_techniques_category,
     show_technique_details,
-    back_to_techniques,
     back_to_categories,
     question_command,
     process_question,
