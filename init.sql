@@ -1,5 +1,5 @@
 
-# Инициализация базы данных
+-- Инициализация базы данных
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
     username VARCHAR(255),
