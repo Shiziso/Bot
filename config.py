@@ -18,7 +18,7 @@ DATABASE = {
     "postgresql": {
         "host": "postgres",  # имя хоста (postgres - имя сервиса в docker-compose)
         "port": 5432,  # порт PostgreSQL
-        "database": "botdb",  # имя базы данных
+        "database": "telegram_bot",  # имя базы данных
         "user": "botuser",  # имя пользователя
         "password": "Ihavepipilo963"  # пароль
     }
