@@ -1,0 +1,27 @@
+version: '3'
+
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgres:13
+    environment:
+      POSTGRES_USER: botuser
+      POSTGRES_PASSWORD: Ihavepipilo963
+      POSTGRES_DB: telegram_bot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  telegram_bot:
+    restart: unless-stopped
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=botuser
+      - DB_PASSWORD=Ihavepipilo963
+      - DB_NAME=telegram_bot
+      - BOT_TOKEN=8093256646:AAH5Zybvzhzkk-ZBTFRzrVq1X2wn_4yO8ps
+
+volumes:
+  postgres_data:
