@@ -30,7 +30,6 @@ from handlers import (
     about_command,
     cancel_command,
     test_command,
-    show_test_categories,
     select_test,
     process_test_answer,
     show_test_result,
@@ -42,15 +41,13 @@ from handlers import (
     techniques_command,
     show_techniques_category,
     show_technique_details,
-    back_to_techniques,
     back_to_categories,
     question_command,
     process_question,
     show_questions,
     answer_question,
     save_question_answer,
-    unknown_command,
-    error_handler
+    unknown_command
 )
 from utils import error_handler
 
@@ -77,9 +74,10 @@ def signal_handler(sig, frame):
     """
     logger.info("Получен сигнал завершения, закрываю соединения...")
     # Закрываем соединения с базой данных
-    db.close_all_connections()
+    db.disconnect()
     logger.info("Бот остановлен")
     sys.exit(0)
+
 
 def main() -> None:
     """

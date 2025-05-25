@@ -84,12 +84,7 @@ class Database:
             if not self.connection:
                 self.connect()
             
-            # Адаптируем запрос в зависимости от типа базы данных
-            adapted_query = query
-            if self.db_type == "postgresql" and "?" in query:
-                adapted_query = query.replace("?", "%s")
-            
-            self.cursor.execute(adapted_query, params)
+            self.cursor.execute(query, params)
             self.connection.commit()
         
         except Exception as e:
@@ -115,12 +110,7 @@ class Database:
             if not self.connection:
                 self.connect()
             
-            # Адаптируем запрос в зависимости от типа базы данных
-            adapted_query = query
-            if self.db_type == "postgresql" and "?" in query:
-                adapted_query = query.replace("?", "%s")
-            
-            self.cursor.execute(adapted_query, params)
+            self.cursor.execute(query, params)
             
             if self.db_type == "sqlite":
                 # SQLite.Row уже возвращает словарь-подобный объект
@@ -343,34 +333,38 @@ class Database:
             self.connect()
             
             # Проверяем, существует ли пользователь
-            query_str = "SELECT user_id FROM users WHERE user_id = ?"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_user_query = "SELECT user_id FROM users WHERE user_id = %s"
+            else: # sqlite
+                select_user_query = "SELECT user_id FROM users WHERE user_id = ?"
             
-            existing_user = self.query(query_str, (user_id,))
+            existing_user = self.query(select_user_query, (user_id,))
             
             if existing_user:
                 # Обновляем информацию о пользователе
-                query_str = "UPDATE users SET username = ?, first_name = ?, last_name = ? WHERE user_id = ?"
                 if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
+                    update_user_query = "UPDATE users SET username = %s, first_name = %s, last_name = %s WHERE user_id = %s"
+                else: # sqlite
+                    update_user_query = "UPDATE users SET username = ?, first_name = ?, last_name = ? WHERE user_id = ?"
                 
-                self.execute(query_str, (username, first_name, last_name, user_id))
+                self.execute(update_user_query, (username, first_name, last_name, user_id))
                 logger.info(f"Обновлена информация о пользователе {user_id}")
             else:
                 # Регистрируем нового пользователя
-                query_str = "INSERT INTO users (user_id, username, first_name, last_name) VALUES (?, ?, ?, ?)"
                 if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
+                    insert_user_query = "INSERT INTO users (user_id, username, first_name, last_name) VALUES (%s, %s, %s, %s)"
+                else: # sqlite
+                    insert_user_query = "INSERT INTO users (user_id, username, first_name, last_name) VALUES (?, ?, ?, ?)"
                 
-                self.execute(query_str, (user_id, username, first_name, last_name))
+                self.execute(insert_user_query, (user_id, username, first_name, last_name))
                 
                 # Создаем настройки по умолчанию
-                query_str = "INSERT INTO user_settings (user_id) VALUES (?)"
                 if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
+                    insert_settings_query = "INSERT INTO user_settings (user_id) VALUES (%s)"
+                else: # sqlite
+                    insert_settings_query = "INSERT INTO user_settings (user_id) VALUES (?)"
                 
-                self.execute(query_str, (user_id,))
+                self.execute(insert_settings_query, (user_id,))
                 
                 logger.info(f"Зарегистрирован новый пользователь {user_id}")
             
@@ -398,11 +392,12 @@ class Database:
             
             current_time = datetime.now()
             
-            query_str = "UPDATE users SET last_activity = ? WHERE user_id = ?"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                update_activity_query = "UPDATE users SET last_activity = %s WHERE user_id = %s"
+            else: # sqlite
+                update_activity_query = "UPDATE users SET last_activity = ? WHERE user_id = ?"
             
-            self.execute(query_str, (current_time, user_id))
+            self.execute(update_activity_query, (current_time, user_id))
             
             return True
         
@@ -427,11 +422,12 @@ class Database:
         try:
             self.connect()
             
-            query_str = "INSERT INTO command_logs (user_id, command) VALUES (?, ?)"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                insert_command_log_query = "INSERT INTO command_logs (user_id, command) VALUES (%s, %s)"
+            else: # sqlite
+                insert_command_log_query = "INSERT INTO command_logs (user_id, command) VALUES (?, ?)"
             
-            self.execute(query_str, (user_id, command))
+            self.execute(insert_command_log_query, (user_id, command))
             
             return True
         
@@ -456,11 +452,12 @@ class Database:
         try:
             self.connect()
             
-            query_str = "INSERT INTO daily_tips (user_id, tip_text) VALUES (?, ?)"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                insert_daily_tip_query = "INSERT INTO daily_tips (user_id, tip_text) VALUES (%s, %s)"
+            else: # sqlite
+                insert_daily_tip_query = "INSERT INTO daily_tips (user_id, tip_text) VALUES (?, ?)"
             
-            self.execute(query_str, (user_id, tip_text))
+            self.execute(insert_daily_tip_query, (user_id, tip_text))
             
             return True
         
@@ -485,11 +482,12 @@ class Database:
         try:
             self.connect()
             
-            query_str = "SELECT tip_id, tip_text, date_sent FROM daily_tips WHERE user_id = ? ORDER BY date_sent DESC LIMIT ?"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_tips_history_query = "SELECT tip_id, tip_text, date_sent FROM daily_tips WHERE user_id = %s ORDER BY date_sent DESC LIMIT %s"
+            else: # sqlite
+                select_tips_history_query = "SELECT tip_id, tip_text, date_sent FROM daily_tips WHERE user_id = ? ORDER BY date_sent DESC LIMIT ?"
             
-            tips = self.query(query_str, (user_id, limit))
+            tips = self.query(select_tips_history_query, (user_id, limit))
             
             return tips
         
@@ -515,20 +513,21 @@ class Database:
             self.connect()
             
             if self.db_type == "sqlite":
-                self.execute(
-                    "INSERT INTO anonymous_questions (user_id, question_text) VALUES (?, ?)",
-                    (user_id, question_text)
-                )
-                
+                insert_query = "INSERT INTO anonymous_questions (user_id, question_text) VALUES (?, ?)"
+                self.execute(insert_query, (user_id, question_text))
                 # Получаем ID последней вставленной записи
-                question_id = self.query("SELECT last_insert_rowid() as id")[0]["id"]
+                # For SQLite, last_insert_rowid() is specific and doesn't need %s or ?
+                question_id_query = "SELECT last_insert_rowid() as id"
+                question_id = self.query(question_id_query)[0]["id"]
             
             elif self.db_type == "postgresql":
-                result = self.query(
-                    "INSERT INTO anonymous_questions (user_id, question_text) VALUES (%s, %s) RETURNING question_id",
-                    (user_id, question_text)
-                )
+                insert_query = "INSERT INTO anonymous_questions (user_id, question_text) VALUES (%s, %s) RETURNING question_id"
+                result = self.query(insert_query, (user_id, question_text))
                 question_id = result[0]["question_id"]
+            else:
+                # Should not happen if db_type is validated in __init__
+                logger.error(f"Unsupported database type: {self.db_type} in save_anonymous_question")
+                return None
             
             logger.info(f"Сохранен анонимный вопрос от пользователя {user_id}, ID вопроса: {question_id}")
             
@@ -559,12 +558,13 @@ class Database:
             
             from config import NOTIFICATION_SETTINGS
             
-            query_str = "UPDATE anonymous_questions SET answer_text = ?, status = ?, date_answered = ? WHERE question_id = ?"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                update_query = "UPDATE anonymous_questions SET answer_text = %s, status = %s, date_answered = %s WHERE question_id = %s"
+            else: # sqlite
+                update_query = "UPDATE anonymous_questions SET answer_text = ?, status = ?, date_answered = ? WHERE question_id = ?"
             
             self.execute(
-                query_str,
+                update_query,
                 (answer_text, NOTIFICATION_SETTINGS["answered_question_emoji"], current_time, question_id)
             )
             
@@ -592,16 +592,22 @@ class Database:
         try:
             self.connect()
             
-            query_str = """
-                SELECT q.*, u.username, u.first_name, u.last_name
-                FROM anonymous_questions q
-                JOIN users u ON q.user_id = u.user_id
-                WHERE q.question_id = ?
-            """
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_query = """
+                    SELECT q.*, u.username, u.first_name, u.last_name
+                    FROM anonymous_questions q
+                    JOIN users u ON q.user_id = u.user_id
+                    WHERE q.question_id = %s
+                """
+            else: # sqlite
+                select_query = """
+                    SELECT q.*, u.username, u.first_name, u.last_name
+                    FROM anonymous_questions q
+                    JOIN users u ON q.user_id = u.user_id
+                    WHERE q.question_id = ?
+                """
             
-            questions = self.query(query_str, (question_id,))
+            questions = self.query(select_query, (question_id,))
             
             if questions:
                 return questions[0]
@@ -629,17 +635,24 @@ class Database:
         try:
             self.connect()
             
-            query_str = """
-                SELECT question_id, question_text, answer_text, status, date_asked, date_answered
-                FROM anonymous_questions
-                WHERE user_id = ?
-                ORDER BY date_asked DESC
-                LIMIT ?
-            """
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_query = """
+                    SELECT question_id, question_text, answer_text, status, date_asked, date_answered
+                    FROM anonymous_questions
+                    WHERE user_id = %s
+                    ORDER BY date_asked DESC
+                    LIMIT %s
+                """
+            else: # sqlite
+                select_query = """
+                    SELECT question_id, question_text, answer_text, status, date_asked, date_answered
+                    FROM anonymous_questions
+                    WHERE user_id = ?
+                    ORDER BY date_asked DESC
+                    LIMIT ?
+                """
             
-            questions = self.query(query_str, (user_id, limit))
+            questions = self.query(select_query, (user_id, limit))
             
             return questions
         
@@ -663,18 +676,26 @@ class Database:
         try:
             self.connect()
             
-            query_str = """
-                SELECT q.*, u.username, u.first_name, u.last_name
-                FROM anonymous_questions q
-                JOIN users u ON q.user_id = u.user_id
-                WHERE q.answer_text IS NULL
-                ORDER BY q.date_asked ASC
-                LIMIT ?
-            """
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_query = """
+                    SELECT q.*, u.username, u.first_name, u.last_name
+                    FROM anonymous_questions q
+                    JOIN users u ON q.user_id = u.user_id
+                    WHERE q.answer_text IS NULL
+                    ORDER BY q.date_asked ASC
+                    LIMIT %s
+                """
+            else: # sqlite
+                select_query = """
+                    SELECT q.*, u.username, u.first_name, u.last_name
+                    FROM anonymous_questions q
+                    JOIN users u ON q.user_id = u.user_id
+                    WHERE q.answer_text IS NULL
+                    ORDER BY q.date_asked ASC
+                    LIMIT ?
+                """
             
-            questions = self.query(query_str, (limit,))
+            questions = self.query(select_query, (limit,))
             
             return questions
         
@@ -706,20 +727,20 @@ class Database:
             answers_json = json.dumps(answers)
             
             if self.db_type == "sqlite":
-                self.execute(
-                    "INSERT INTO test_results (user_id, test_type, score, answers, interpretation) VALUES (?, ?, ?, ?, ?)",
-                    (user_id, test_type, score, answers_json, interpretation)
-                )
-                
+                insert_query = "INSERT INTO test_results (user_id, test_type, score, answers, interpretation) VALUES (?, ?, ?, ?, ?)"
+                self.execute(insert_query, (user_id, test_type, score, answers_json, interpretation))
                 # Получаем ID последней вставленной записи
-                result_id = self.query("SELECT last_insert_rowid() as id")[0]["id"]
+                id_query = "SELECT last_insert_rowid() as id"
+                result_id = self.query(id_query)[0]["id"]
             
             elif self.db_type == "postgresql":
-                result = self.query(
-                    "INSERT INTO test_results (user_id, test_type, score, answers, interpretation) VALUES (%s, %s, %s, %s, %s) RETURNING result_id",
-                    (user_id, test_type, score, answers_json, interpretation)
-                )
+                insert_query = "INSERT INTO test_results (user_id, test_type, score, answers, interpretation) VALUES (%s, %s, %s, %s, %s) RETURNING result_id"
+                result = self.query(insert_query, (user_id, test_type, score, answers_json, interpretation))
                 result_id = result[0]["result_id"]
+            else:
+                # Should not happen if db_type is validated in __init__
+                logger.error(f"Unsupported database type: {self.db_type} in save_test_result")
+                return None
             
             logger.info(f"Сохранен результат теста {test_type} для пользователя {user_id}, ID результата: {result_id}")
             
@@ -751,25 +772,36 @@ class Database:
                 query_str = """
                     SELECT result_id, test_type, score, interpretation, date_taken
                     FROM test_results
+                    WHERE user_id = %s AND test_type = %s
+                    ORDER BY date_taken DESC
+                    LIMIT %s
+                """
+                else:
+                    query_str = """
+                    SELECT result_id, test_type, score, interpretation, date_taken
+                    FROM test_results
                     WHERE user_id = ? AND test_type = ?
                     ORDER BY date_taken DESC
                     LIMIT ?
                 """
-                if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
-                
                 results = self.query(query_str, (user_id, test_type, limit))
             else:
-                query_str = """
+                if self.db_type == "postgresql":
+                    query_str = """
+                    SELECT result_id, test_type, score, interpretation, date_taken
+                    FROM test_results
+                    WHERE user_id = %s
+                    ORDER BY date_taken DESC
+                    LIMIT %s
+                    """
+                else:
+                    query_str = """
                     SELECT result_id, test_type, score, interpretation, date_taken
                     FROM test_results
                     WHERE user_id = ?
                     ORDER BY date_taken DESC
                     LIMIT ?
-                """
-                if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
-                
+                    """
                 results = self.query(query_str, (user_id, limit))
             
             return results
@@ -798,20 +830,20 @@ class Database:
             self.connect()
             
             if self.db_type == "sqlite":
-                self.execute(
-                    "INSERT INTO mood_tracking (user_id, mood_emoji, mood_text, notes) VALUES (?, ?, ?, ?)",
-                    (user_id, mood_emoji, mood_text, notes)
-                )
-                
+                insert_query = "INSERT INTO mood_tracking (user_id, mood_emoji, mood_text, notes) VALUES (?, ?, ?, ?)"
+                self.execute(insert_query, (user_id, mood_emoji, mood_text, notes))
                 # Получаем ID последней вставленной записи
-                mood_id = self.query("SELECT last_insert_rowid() as id")[0]["id"]
+                id_query = "SELECT last_insert_rowid() as id"
+                mood_id = self.query(id_query)[0]["id"]
             
             elif self.db_type == "postgresql":
-                result = self.query(
-                    "INSERT INTO mood_tracking (user_id, mood_emoji, mood_text, notes) VALUES (%s, %s, %s, %s) RETURNING mood_id",
-                    (user_id, mood_emoji, mood_text, notes)
-                )
+                insert_query = "INSERT INTO mood_tracking (user_id, mood_emoji, mood_text, notes) VALUES (%s, %s, %s, %s) RETURNING mood_id"
+                result = self.query(insert_query, (user_id, mood_emoji, mood_text, notes))
                 mood_id = result[0]["mood_id"]
+            else:
+                # Should not happen if db_type is validated in __init__
+                logger.error(f"Unsupported database type: {self.db_type} in save_mood")
+                return None
             
             logger.info(f"Сохранена запись о настроении пользователя {user_id}, ID записи: {mood_id}")
             
@@ -838,17 +870,24 @@ class Database:
         try:
             self.connect()
             
-            query_str = """
-                SELECT mood_id, mood_emoji, mood_text, notes, date_recorded
-                FROM mood_tracking
-                WHERE user_id = ?
-                ORDER BY date_recorded DESC
-                LIMIT ?
-            """
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_query = """
+                    SELECT mood_id, mood_emoji, mood_text, notes, date_recorded
+                    FROM mood_tracking
+                    WHERE user_id = %s
+                    ORDER BY date_recorded DESC
+                    LIMIT %s
+                """
+            else: # sqlite
+                select_query = """
+                    SELECT mood_id, mood_emoji, mood_text, notes, date_recorded
+                    FROM mood_tracking
+                    WHERE user_id = ?
+                    ORDER BY date_recorded DESC
+                    LIMIT ?
+                """
             
-            moods = self.query(query_str, (user_id, limit))
+            moods = self.query(select_query, (user_id, limit))
             
             return moods
         
@@ -872,11 +911,12 @@ class Database:
         try:
             self.connect()
             
-            query_str = "SELECT * FROM user_settings WHERE user_id = ?"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                select_settings_query = "SELECT * FROM user_settings WHERE user_id = %s"
+            else: # sqlite
+                select_settings_query = "SELECT * FROM user_settings WHERE user_id = ?"
             
-            settings = self.query(query_str, (user_id,))
+            settings = self.query(select_settings_query, (user_id,))
             
             if settings:
                 return settings[0]
@@ -906,39 +946,39 @@ class Database:
             self.connect()
             
             # Получаем текущие настройки
-            query_str = "SELECT * FROM user_settings WHERE user_id = ?"
             if self.db_type == "postgresql":
-                query_str = query_str.replace("?", "%s")
+                settings_query_str = "SELECT * FROM user_settings WHERE user_id = %s"
+            else:
+                settings_query_str = "SELECT * FROM user_settings WHERE user_id = ?"
             
-            settings = self.query(query_str, (user_id,))
+            settings = self.query(settings_query_str, (user_id,))
             
             if not settings:
                 # Создаем настройки по умолчанию
-                query_str = "INSERT INTO user_settings (user_id) VALUES (?)"
                 if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
-                
-                self.execute(query_str, (user_id,))
+                    insert_query_str = "INSERT INTO user_settings (user_id) VALUES (%s)"
+                else:
+                    insert_query_str = "INSERT INTO user_settings (user_id) VALUES (?)"
+                self.execute(insert_query_str, (user_id,))
             
             # Обновляем настройки
             updates = []
             params = []
             
+            placeholder = "%s" if self.db_type == "postgresql" else "?"
+            
             if notifications_enabled is not None:
-                updates.append("notifications_enabled = ?")
+                updates.append(f"notifications_enabled = {placeholder}")
                 params.append(notifications_enabled)
             
             if daily_tip_time is not None:
-                updates.append("daily_tip_time = ?")
+                updates.append(f"daily_tip_time = {placeholder}")
                 params.append(daily_tip_time)
             
             if updates:
-                query_str = f"UPDATE user_settings SET {', '.join(updates)} WHERE user_id = ?"
-                if self.db_type == "postgresql":
-                    query_str = query_str.replace("?", "%s")
-                
+                update_query_str = f"UPDATE user_settings SET {', '.join(updates)} WHERE user_id = {placeholder}"
                 params.append(user_id)
-                self.execute(query_str, tuple(params))
+                self.execute(update_query_str, tuple(params))
             
             logger.info(f"Обновлены настройки пользователя {user_id}")
             
@@ -975,6 +1015,7 @@ class Database:
                     ORDER BY command_count DESC
                 """
                 days_param = f"-{days} days"
+                users = self.query(query_str, (days_param,))
             elif self.db_type == "postgresql":
                 query_str = """
                     SELECT u.user_id, u.username, u.first_name, u.last_name, u.last_activity,
@@ -986,8 +1027,9 @@ class Database:
                     ORDER BY command_count DESC
                 """
                 days_param = f"{days} days"
-            
-            users = self.query(query_str, (days_param,))
+                users = self.query(query_str, (days_param,))
+            else:
+                users = [] # Should not happen given db_type check at init
             
             return users
         
@@ -1020,6 +1062,7 @@ class Database:
                     ORDER BY count DESC
                 """
                 days_param = f"-{days} days"
+                stats = self.query(query_str, (days_param,))
             elif self.db_type == "postgresql":
                 query_str = """
                     SELECT command, COUNT(*) as count, COUNT(DISTINCT user_id) as unique_users
@@ -1029,8 +1072,9 @@ class Database:
                     ORDER BY count DESC
                 """
                 days_param = f"{days} days"
-            
-            stats = self.query(query_str, (days_param,))
+                stats = self.query(query_str, (days_param,))
+            else:
+                stats = [] # Should not happen
             
             return stats
         
@@ -1063,6 +1107,7 @@ class Database:
                     ORDER BY date
                 """
                 days_param = f"-{days} days"
+                stats = self.query(query_str, (days_param,))
             elif self.db_type == "postgresql":
                 query_str = """
                     SELECT DATE(timestamp) as date, COUNT(*) as command_count, COUNT(DISTINCT user_id) as user_count
@@ -1072,8 +1117,9 @@ class Database:
                     ORDER BY date
                 """
                 days_param = f"{days} days"
-            
-            stats = self.query(query_str, (days_param,))
+                stats = self.query(query_str, (days_param,))
+            else:
+                stats = [] # Should not happen
             
             return stats
         
@@ -1106,6 +1152,7 @@ class Database:
                     GROUP BY test_type
                 """
                 days_param = f"-{days} days"
+                tests_stats = self.query(tests_query, (days_param,))
             elif self.db_type == "postgresql":
                 tests_query = """
                     SELECT test_type as feature, COUNT(*) as count, COUNT(DISTINCT user_id) as unique_users
@@ -1114,8 +1161,9 @@ class Database:
                     GROUP BY test_type
                 """
                 days_param = f"{days} days"
-            
-            tests_stats = self.query(tests_query, (days_param,))
+                tests_stats = self.query(tests_query, (days_param,))
+            else:
+                tests_stats = [] # Should not happen
             
             # Статистика по настроению
             if self.db_type == "sqlite":
@@ -1124,14 +1172,16 @@ class Database:
                     FROM mood_tracking
                     WHERE date_recorded >= datetime('now', ?)
                 """
+                mood_stats = self.query(mood_query, (days_param,))
             elif self.db_type == "postgresql":
                 mood_query = """
                     SELECT 'mood_tracking' as feature, COUNT(*) as count, COUNT(DISTINCT user_id) as unique_users
                     FROM mood_tracking
                     WHERE date_recorded >= NOW() - INTERVAL %s
                 """
-            
-            mood_stats = self.query(mood_query, (days_param,))
+                mood_stats = self.query(mood_query, (days_param,))
+            else:
+                mood_stats = [] # Should not happen
             
             # Статистика по вопросам
             if self.db_type == "sqlite":
@@ -1140,14 +1190,16 @@ class Database:
                     FROM anonymous_questions
                     WHERE date_asked >= datetime('now', ?)
                 """
+                questions_stats = self.query(questions_query, (days_param,))
             elif self.db_type == "postgresql":
                 questions_query = """
                     SELECT 'questions' as feature, COUNT(*) as count, COUNT(DISTINCT user_id) as unique_users
                     FROM anonymous_questions
                     WHERE date_asked >= NOW() - INTERVAL %s
                 """
-            
-            questions_stats = self.query(questions_query, (days_param,))
+                questions_stats = self.query(questions_query, (days_param,))
+            else:
+                questions_stats = [] # Should not happen
             
             # Объединяем статистику
             stats = tests_stats + mood_stats + questions_stats
@@ -1180,10 +1232,12 @@ class Database:
             # Общее количество пользователей
             if self.db_type == "sqlite":
                 total_query = "SELECT COUNT(*) as count FROM users"
+                total_users = self.query(total_query)[0]["count"]
             elif self.db_type == "postgresql":
                 total_query = "SELECT COUNT(*) as count FROM users"
-            
-            total_users = self.query(total_query)[0]["count"]
+                total_users = self.query(total_query)[0]["count"]
+            else:
+                total_users = 0 # Should not happen
             
             # Активные пользователи за последний день
             if self.db_type == "sqlite":
@@ -1192,14 +1246,16 @@ class Database:
                     FROM users
                     WHERE last_activity >= datetime('now', '-1 day')
                 """
+                day_active = self.query(day_query)[0]["count"]
             elif self.db_type == "postgresql":
                 day_query = """
                     SELECT COUNT(DISTINCT user_id) as count
                     FROM users
                     WHERE last_activity >= NOW() - INTERVAL '1 day'
                 """
-            
-            day_active = self.query(day_query)[0]["count"]
+                day_active = self.query(day_query)[0]["count"]
+            else:
+                day_active = 0 # Should not happen
             
             # Активные пользователи за последнюю неделю
             if self.db_type == "sqlite":
@@ -1208,14 +1264,16 @@ class Database:
                     FROM users
                     WHERE last_activity >= datetime('now', '-7 day')
                 """
+                week_active = self.query(week_query)[0]["count"]
             elif self.db_type == "postgresql":
                 week_query = """
                     SELECT COUNT(DISTINCT user_id) as count
                     FROM users
                     WHERE last_activity >= NOW() - INTERVAL '7 days'
                 """
-            
-            week_active = self.query(week_query)[0]["count"]
+                week_active = self.query(week_query)[0]["count"]
+            else:
+                week_active = 0 # Should not happen
             
             # Активные пользователи за последний месяц
             if self.db_type == "sqlite":
@@ -1224,14 +1282,16 @@ class Database:
                     FROM users
                     WHERE last_activity >= datetime('now', ?)
                 """
+                month_active = self.query(month_query, (f"-{days} days",))[0]["count"]
             elif self.db_type == "postgresql":
                 month_query = """
                     SELECT COUNT(DISTINCT user_id) as count
                     FROM users
                     WHERE last_activity >= NOW() - INTERVAL %s
                 """
-            
-            month_active = self.query(month_query, (f"{days} days",))[0]["count"]
+                month_active = self.query(month_query, (f"{days} days",))[0]["count"]
+            else:
+                month_active = 0 # Should not happen
             
             # Расчет показателей удержания
             day_retention = round(day_active / total_users * 100, 2) if total_users > 0 else 0
